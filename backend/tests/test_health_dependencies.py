@@ -121,3 +121,72 @@ async def test_health_unavailable_when_postgresql_fails(async_client: AsyncClien
 
         assert data["status"] == "unavailable"
         assert data["dependencies"]["postgresql"] == "unavailable"
+
+
+# ---------------------------------------------------------------------------
+# Database Engine URL Parsing & asyncpg Compatibility Regression Tests
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_engine_args_neon_sslmode_require():
+    """Verify Neon PostgreSQL URL with sslmode=require converts to asyncpg connect_args."""
+    from app.db.session import prepare_engine_args
+    from sqlalchemy.engine.url import URL
+
+    neon_url = "postgresql://user:password@ep-cool-fog-123.us-east-2.aws.neon.tech/neondb?sslmode=require"
+    url, kwargs = prepare_engine_args(neon_url)
+
+    assert isinstance(url, URL)
+    assert url.drivername == "postgresql+asyncpg"
+    assert "sslmode" not in url.query
+    assert kwargs.get("connect_args") == {"ssl": "require"}
+    assert kwargs.get("pool_size") == 10
+    assert kwargs.get("pool_pre_ping") is not True or kwargs.get("pool_size") == 10
+
+
+def test_prepare_engine_args_neon_with_channel_binding():
+    """Verify channel_binding and sslmode are both safely stripped for asyncpg."""
+    from app.db.session import prepare_engine_args
+
+    url_str = "postgresql+asyncpg://user:pass@ep-cool.neon.tech/neondb?sslmode=require&channel_binding=require"
+    url, kwargs = prepare_engine_args(url_str)
+
+    assert "sslmode" not in url.query
+    assert "channel_binding" not in url.query
+    assert kwargs.get("connect_args") == {"ssl": "require"}
+
+
+def test_prepare_engine_args_various_sslmodes():
+    """Verify other standard sslmodes map accurately to asyncpg ssl strings."""
+    from app.db.session import prepare_engine_args
+
+    for mode in ("verify-full", "verify-ca", "prefer", "disable", "allow"):
+        url_str = f"postgresql://user:pass@ep-cool.neon.tech/neondb?sslmode={mode}"
+        url, kwargs = prepare_engine_args(url_str)
+        assert "sslmode" not in url.query
+        assert kwargs.get("connect_args") == {"ssl": mode}
+
+
+def test_prepare_engine_args_local_postgres_url():
+    """Verify local PostgreSQL development URLs retain standard settings without ssl."""
+    from app.db.session import prepare_engine_args
+
+    local_url = "postgresql+asyncpg://docfactory:changeme@localhost:5432/document_factory"
+    url, kwargs = prepare_engine_args(local_url)
+
+    assert url.drivername == "postgresql+asyncpg"
+    assert kwargs.get("connect_args") is None or "ssl" not in kwargs.get("connect_args", {})
+    assert kwargs.get("pool_size") == 10
+
+
+def test_prepare_engine_args_sqlite_url():
+    """Verify in-memory SQLite used in testing is not altered or given pool kwargs."""
+    from app.db.session import prepare_engine_args
+
+    sqlite_url = "sqlite+aiosqlite:///:memory:"
+    url, kwargs = prepare_engine_args(sqlite_url)
+
+    assert url.drivername == "sqlite+aiosqlite"
+    assert "pool_size" not in kwargs
+    assert kwargs.get("connect_args") is None
+
