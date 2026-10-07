@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import type { ReviewQueueItem, ReviewQueueResponse } from './types'
+import type { ReviewQueueItem } from './types'
+import { reviewApi, formatApiError } from '../../api/client'
 
 interface ReviewQueueProps {
   onSelectReview: (reviewId: string) => void
@@ -21,28 +22,17 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ onSelectReview }) => {
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams()
-      params.append('page', page.toString())
-      params.append('page_size', pageSize.toString())
-      if (statusFilter && statusFilter !== 'ALL') {
-        params.append('status', statusFilter)
-      } else if (statusFilter === 'ALL') {
-        params.append('status', 'ALL')
-      }
-      if (docTypeFilter && docTypeFilter !== 'ALL') {
-        params.append('document_type', docTypeFilter)
-      }
-
-      const res = await fetch(`/api/v1/review/queue?${params.toString()}`)
-      if (!res.ok) {
-        throw new Error(`Failed to load review queue: ${res.status} ${res.statusText}`)
-      }
-      const data: ReviewQueueResponse = await res.json()
-      setItems(data.items || [])
+      const data = await reviewApi.listQueue({
+        page,
+        page_size: pageSize,
+        status: statusFilter && statusFilter !== 'ALL' ? statusFilter : statusFilter === 'ALL' ? 'ALL' : undefined,
+        document_type: docTypeFilter && docTypeFilter !== 'ALL' ? docTypeFilter : undefined,
+      })
+      setItems((data.items as unknown as ReviewQueueItem[]) || [])
       setTotal(data.total || 0)
       setTotalPages(data.total_pages || 1)
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while fetching the review queue.')
+    } catch (err: unknown) {
+      setError(formatApiError(err))
     } finally {
       setLoading(false)
     }

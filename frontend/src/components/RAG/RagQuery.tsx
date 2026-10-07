@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import type { RagQueryResponse, RagSourceCitation, ApprovedDocumentOption } from './types'
+import type { RagQueryRequest } from '../../types'
+import { ragApi, documentsApi, formatApiError } from '../../api/client'
 import SourceCard from './SourceCard'
 import './Rag.css'
 
@@ -20,19 +22,16 @@ export const RagQuery: React.FC = () => {
   useEffect(() => {
     const fetchDocs = async () => {
       try {
-        const res = await fetch('/api/v1/documents?page_size=50')
-        if (res.ok) {
-          const data = await res.json()
-          const items = data.items || data || []
-          setDocuments(
-            items.map((d: any) => ({
-              id: d.id,
-              original_filename: d.original_filename,
-              document_type: d.document_type,
-              status: d.status,
-            }))
-          )
-        }
+        const data = await documentsApi.list({ page_size: 50 })
+        const items = data.items || []
+        setDocuments(
+          items.map((d: any) => ({
+            id: d.id,
+            original_filename: d.original_filename,
+            document_type: d.document_type,
+            status: d.status,
+          }))
+        )
       } catch {
         // Fallback silently if documents endpoint not available
       }
@@ -50,7 +49,7 @@ export const RagQuery: React.FC = () => {
     setHighlightedSource(null)
 
     try {
-      const payload: Record<string, any> = {
+      const payload: RagQueryRequest = {
         query: cleanQuery,
         top_k: topK,
       }
@@ -61,21 +60,10 @@ export const RagQuery: React.FC = () => {
         payload.document_id = selectedDocId
       }
 
-      const res = await fetch('/api/v1/rag/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.detail || `Query failed: ${res.statusText}`)
-      }
-
-      const data: RagQueryResponse = await res.json()
-      setResult(data)
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while running semantic search.')
+      const data = await ragApi.query(payload)
+      setResult(data as unknown as RagQueryResponse)
+    } catch (err: unknown) {
+      setError(formatApiError(err) || 'An error occurred while running semantic search.')
     } finally {
       setLoading(false)
     }

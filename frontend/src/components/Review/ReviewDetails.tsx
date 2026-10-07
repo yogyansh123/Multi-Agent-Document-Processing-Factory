@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import type { ReviewDetailsResponse, ReviewActionResponse } from './types'
+import type { ReviewDetailsResponse } from './types'
 import ExtractedDataEditor from './ExtractedDataEditor'
+import { reviewApi, formatApiError } from '../../api/client'
 
 interface ReviewDetailsProps {
   reviewId: string
@@ -29,18 +30,14 @@ export const ReviewDetails: React.FC<ReviewDetailsProps> = ({ reviewId, onBack }
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/v1/review/${reviewId}`)
-      if (!res.ok) {
-        throw new Error(`Failed to load review details: ${res.status} ${res.statusText}`)
-      }
-      const data: ReviewDetailsResponse = await res.json()
-      setReview(data)
+      const data = await reviewApi.getDetails(reviewId)
+      setReview(data as unknown as ReviewDetailsResponse)
       // Initialize editable data from reviewed or extracted data
       const initialExtraction =
         data.reviewed_extracted_data || data.document.extracted_data || data.original_extracted_data || {}
       setEditableData(JSON.parse(JSON.stringify(initialExtraction)))
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch review details.')
+    } catch (err: unknown) {
+      setError(formatApiError(err) || 'Failed to load review details.')
     } finally {
       setLoading(false)
     }
@@ -54,19 +51,15 @@ export const ReviewDetails: React.FC<ReviewDetailsProps> = ({ reviewId, onBack }
     setActionLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/v1/review/${reviewId}/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewer_name: reviewerName || 'Reviewer' }),
-      })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.detail || 'Failed to start review.')
-      }
+      await reviewApi.start(
+        reviewId,
+        'rev_default_human',
+        reviewerName || 'Reviewer'
+      )
       setSuccessMsg('Review claimed and marked IN_REVIEW.')
       await fetchDetails()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(formatApiError(err))
     } finally {
       setActionLoading(false)
     }
@@ -76,24 +69,17 @@ export const ReviewDetails: React.FC<ReviewDetailsProps> = ({ reviewId, onBack }
     setActionLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/v1/review/${reviewId}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reason: decisionReason || 'AI extraction approved without modification',
-          reviewer_name: reviewerName || undefined,
-        }),
-      })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.detail || 'Approval failed.')
-      }
-      const actionRes: ReviewActionResponse = await res.json()
+      const actionRes = await reviewApi.approve(
+        reviewId,
+        'rev_default_human',
+        reviewerName || 'Human Reviewer',
+        decisionReason || 'AI extraction approved without modification'
+      )
       setSuccessMsg(actionRes.message || 'Document approved successfully!')
       setShowApproveModal(false)
       await fetchDetails()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(formatApiError(err))
     } finally {
       setActionLoading(false)
     }
@@ -107,24 +93,17 @@ export const ReviewDetails: React.FC<ReviewDetailsProps> = ({ reviewId, onBack }
     setActionLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/v1/review/${reviewId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reason: decisionReason,
-          reviewer_name: reviewerName || undefined,
-        }),
-      })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.detail || 'Rejection failed.')
-      }
-      const actionRes: ReviewActionResponse = await res.json()
+      const actionRes = await reviewApi.reject(
+        reviewId,
+        'rev_default_human',
+        reviewerName || 'Human Reviewer',
+        decisionReason
+      )
       setSuccessMsg(actionRes.message || 'Document rejected.')
       setShowRejectModal(false)
       await fetchDetails()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(formatApiError(err))
     } finally {
       setActionLoading(false)
     }
@@ -134,20 +113,13 @@ export const ReviewDetails: React.FC<ReviewDetailsProps> = ({ reviewId, onBack }
     setActionLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/v1/review/${reviewId}/correct`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          corrected_data: editableData,
-          reason: decisionReason || 'Manual field corrections applied',
-          reviewer_name: reviewerName || undefined,
-        }),
-      })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.detail || 'Correction validation failed.')
-      }
-      const actionRes: ReviewActionResponse = await res.json()
+      const actionRes = await reviewApi.correct(
+        reviewId,
+        editableData,
+        'rev_default_human',
+        reviewerName || 'Human Reviewer',
+        decisionReason || 'Manual field corrections applied'
+      )
       setSuccessMsg(
         `Correction applied! Document status: ${actionRes.document_status}. Validation Score: ${
           actionRes.validation_score !== null && actionRes.validation_score !== undefined
@@ -157,8 +129,8 @@ export const ReviewDetails: React.FC<ReviewDetailsProps> = ({ reviewId, onBack }
       )
       setShowCorrectModal(false)
       await fetchDetails()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(formatApiError(err))
     } finally {
       setActionLoading(false)
     }
