@@ -1,0 +1,33 @@
+# requirements-test.txt
+# =====================
+# Test-only dependencies — excludes C-extension packages that need compilation.
+# Use this on Windows dev machines without Visual C++ Build Tools.
+#
+# Usage:
+#   pip install -r requirements-test.txt
+#   pytest tests/ -v
+#
+# In Docker / Linux CI, use requirements.txt (full install) instead.
+
+fastapi==0.115.4
+uvicorn[standard]==0.32.1
+pydantic==2.9.2
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+httpx==0.27.2
+structlog==24.4.0
+python-multipart==0.0.12
+
+# Database (pure Python — no asyncpg needed for tests)
+sqlalchemy==2.0.36
+aiosqlite==0.20.0          # SQLite async driver for in-memory test DB
+pgvector>=0.3.0
+
+# Testing
+pytest==8.3.3
+pytest-asyncio==0.24.0
+anyio==4.6.2
+
+# NOTE: asyncpg requires C compilation (needs Visual C++ Build Tools on Windows).
+# It is excluded here — tests use SQLite in-memory instead of PostgreSQL.
+# Install full requirements.txt in Docker or Linux environments.

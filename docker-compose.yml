@@ -1,0 +1,274 @@
+# =============================================================================
+# Multi-Agent Document Processing Factory — Docker Compose Architecture
+# =============================================================================
+# Complete containerized production-ready stack:
+# - postgres: PostgreSQL 16 with pgvector extension
+# - redis: In-memory cache & status accelerator
+# - temporal: Temporal workflow orchestration engine (auto-setup)
+# - temporal-ui: Temporal Web UI (port 8088)
+# - temporal-admin-tools: CLI administration utilities
+# - backend: FastAPI document processing factory service (port 8000)
+# - temporal-worker: Long-lived activity execution engine
+# - frontend: Production React + TypeScript SPA served via Nginx (port 5173)
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # 1. PostgreSQL Database + pgvector
+  # ===========================================================================
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: docfactory-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-document_factory}
+      POSTGRES_USER: ${POSTGRES_USER:-docfactory}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_postgres_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-docfactory} -d ${POSTGRES_DB:-document_factory}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docfactory-network
+
+  # ===========================================================================
+  # 2. Redis Cache & Status Acceleration
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: docfactory-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-changeme_redis_password}
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-changeme_redis_password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docfactory-network
+
+  # ===========================================================================
+  # 3. Temporal Workflow Engine
+  # ===========================================================================
+  temporal:
+    image: temporalio/auto-setup:1.25
+    container_name: docfactory-temporal
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-docfactory}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:-changeme_postgres_password}
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_FILE_PATH=/etc/temporal/config/dynamicconfig.yaml
+    ports:
+      - "${TEMPORAL_PORT:-7233}:7233"
+    volumes:
+      - ./infrastructure/docker/temporal/dynamicconfig.yaml:/etc/temporal/config/dynamicconfig.yaml:ro
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "temporal:7233"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - docfactory-network
+
+  # ===========================================================================
+  # 4. Temporal UI (Workflow Observability)
+  # ===========================================================================
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    container_name: docfactory-temporal-ui
+    restart: unless-stopped
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+    ports:
+      - "8088:8080"
+    networks:
+      - docfactory-network
+
+  # ===========================================================================
+  # 5. Temporal Admin Tools
+  # ===========================================================================
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.25
+    container_name: docfactory-temporal-admin-tools
+    restart: unless-stopped
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    stdin_open: true
+    tty: true
+    networks:
+      - docfactory-network
+
+  # ===========================================================================
+  # 6. Backend — FastAPI Application Service
+  # ===========================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: docfactory-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-document_factory}
+      POSTGRES_USER: ${POSTGRES_USER:-docfactory}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_postgres_password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme_redis_password}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme_redis_password}@redis:6379/0
+      TEMPORAL_HOST: temporal
+      TEMPORAL_PORT: 7233
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-document-processing}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-document-processing-queue}
+      STORAGE_PATH: /app/storage
+      VECTOR_DB_PROVIDER: pgvector
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      SECRET_KEY: ${SECRET_KEY:-dev_secret_key_change_in_production_32chars}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - document_storage:/app/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - docfactory-network
+
+  # ===========================================================================
+  # 7. Temporal Worker — Background Activity Execution Engine
+  # ===========================================================================
+  temporal-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: docfactory-temporal-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-document_factory}
+      POSTGRES_USER: ${POSTGRES_USER:-docfactory}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_postgres_password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme_redis_password}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme_redis_password}@redis:6379/0
+      TEMPORAL_HOST: temporal
+      TEMPORAL_PORT: 7233
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-document-processing}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-document-processing-queue}
+      STORAGE_PATH: /app/storage
+      VECTOR_DB_PROVIDER: pgvector
+      SECRET_KEY: ${SECRET_KEY:-dev_secret_key_change_in_production_32chars}
+    healthcheck:
+      disable: true
+    volumes:
+      - document_storage:/app/storage
+    networks:
+      - docfactory-network
+
+  # ===========================================================================
+  # 8. Frontend — Production React + TypeScript SPA (Nginx)
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: docfactory-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:80/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - docfactory-network
+
+# =============================================================================
+# Persistent Named Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    name: docfactory_postgres_data
+    driver: local
+  redis_data:
+    name: docfactory_redis_data
+    driver: local
+  document_storage:
+    name: docfactory_document_storage
+    driver: local
+
+# =============================================================================
+# Dedicated Bridge Network
+# =============================================================================
+networks:
+  docfactory-network:
+    name: docfactory-network
+    driver: bridge

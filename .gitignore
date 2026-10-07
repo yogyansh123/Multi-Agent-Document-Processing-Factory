@@ -1,0 +1,173 @@
+# =============================================================================
+# Multi-Agent Document Processing Factory — .gitignore
+# =============================================================================
+
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+.virtualenv/
+
+# Pytest
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+*.coveragerc
+nosetests.xml
+test-results/
+.tox/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# pyright
+pyrightconfig.json
+
+# ruff
+.ruff_cache/
+
+# Alembic (keep structure, ignore generated revisions in gitignore if desired)
+# backend/alembic/versions/*.py  # uncomment if you want to exclude migrations
+
+# -------------------------
+# Node.js / Frontend
+# -------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+lerna-debug.log*
+
+# Build output
+frontend/dist/
+frontend/build/
+frontend/.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+# Optional npm cache
+.npm
+
+# eslint cache
+.eslintcache
+
+# -------------------------
+# Environment & Secrets
+# -------------------------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+*.env
+
+# -------------------------
+# Docker
+# -------------------------
+.docker/
+docker-compose.override.yml
+
+# -------------------------
+# Database
+# -------------------------
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+pgdata/
+
+# -------------------------
+# Uploads & Processed Files
+# -------------------------
+uploads/
+processed/
+storage/
+backend/storage/
+tmp/
+temp/
+
+# -------------------------
+# Logs
+# -------------------------
+logs/
+*.log
+*.log.*
+
+# -------------------------
+# IDE & Editors
+# -------------------------
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# JetBrains
+*.iml
+*.iws
+.idea/
+
+# -------------------------
+# OS
+# -------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -------------------------
+# Misc
+# -------------------------
+*.bak
+*.tmp
+*.orig
+.cache/

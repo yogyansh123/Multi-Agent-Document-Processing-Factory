@@ -1,0 +1,34 @@
+# Temporal Dynamic Configuration
+# ================================
+# This file sets Temporal server dynamic configuration options.
+# See: https://github.com/temporalio/temporal/blob/main/config/dynamicconfig/development-sql.yaml
+
+# Limit concurrent workflow executions per namespace (adjust as needed)
+limit.maxIDLengthLimit:
+  - value: 255
+    constraints: {}
+
+# Frontend service rate limits
+frontend.rps:
+  - value: 2400
+    constraints: {}
+
+# History service settings
+history.defaultActivityRetryPolicy:
+  - value:
+      InitialIntervalInSeconds: 1
+      MaximumIntervalCoefficient: 100.0
+      BackoffCoefficient: 2.0
+      MaximumAttempts: 3
+
+history.defaultWorkflowRetryPolicy:
+  - value:
+      InitialIntervalInSeconds: 1
+      MaximumIntervalCoefficient: 100.0
+      BackoffCoefficient: 2.0
+      MaximumAttempts: 3
+
+# Visibility settings
+system.enableReadFromSecondary:
+  - value: false
+    constraints: {}
