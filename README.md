@@ -11,7 +11,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20+%20pgvector-336791?style=flat-square&logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
-[![Tests](https://img.shields.io/badge/Pytest-198%20Passed-brightgreen?style=flat-square)](backend/tests/)
+[![Tests](https://img.shields.io/badge/Pytest-211%20Passed-brightgreen?style=flat-square)](backend/tests/)
 
 ---
 
@@ -181,7 +181,7 @@ Each document traverses an 8-stage operational pipeline:
 | **Agentic Framework** | LangGraph | 0.2+ | Directed acyclic cognitive state graphs for classification/extraction |
 | **Logging** | structlog | 24.x | JSON-structured structured logging |
 | **Containerization** | Docker Compose | v2.38+ | 8-service local and production stack orchestration |
-| **Testing** | Pytest | 9.x | 198 unit, activity, workflow, and integration tests |
+| **Testing** | Pytest | 9.x | 211 unit, activity, workflow, and integration tests |
 
 ---
 
@@ -363,7 +363,7 @@ npm run dev
 
 ### 3. Running Automated Tests
 ```bash
-# Backend pytest suite (198 tests)
+# Backend pytest suite (211 tests)
 cd backend
 pytest tests/ -v
 

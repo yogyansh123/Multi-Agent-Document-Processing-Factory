@@ -10,14 +10,14 @@
 
 ### Version A — Concise & Impact-Oriented (2 Bullets)
 - Engineered a distributed, multi-agent document processing platform using **FastAPI**, **LangGraph**, and **Temporal**, executing 5 idempotent workflow activities (OCR, classification, extraction, validation, confidence scoring) with exponential backoff retries and human-in-the-loop review queues.
-- Integrated **PostgreSQL 16 + pgvector** for transactional metadata and 1536-dimensional semantic retrieval (RAG) with traceable source citations, **Redis** for sub-millisecond status acceleration, and a **React/TypeScript** glassmorphic cockpit, validated by a **198-test automated pytest suite**.
+- Integrated **PostgreSQL 16 + pgvector** for transactional metadata and 1536-dimensional semantic retrieval (RAG) with traceable source citations, **Redis** for sub-millisecond status acceleration, and a **React/TypeScript** glassmorphic cockpit, validated by a **211-test automated pytest suite**.
 
 ---
 
 ### Version B — Technical Architecture & Reliability Focus (3 Bullets)
 - Architected an 8-service containerized document intelligence pipeline orchestrating **LangGraph** cognitive agents with **Temporal** distributed workflows (`document-processing-queue`), achieving durable state persistence, strict workflow idempotency, and automated recovery across transient failures.
 - Built a multi-factor confidence scoring engine ($0.25 \times \text{Class} + 0.35 \times \text{Extract} + 0.40 \times \text{Val}$) and dual-path routing that auto-approves high-confidence documents ($\ge 0.85$) while routing anomalies to a custom human review queue with deterministic revalidation and original extraction preservation.
-- Implemented an embedded **pgvector** RAG subsystem featuring 800-character paragraph-aware chunking, cosine similarity retrieval (`<=>`), strict anti-hallucination refusals, and dynamic SQL analytics aggregation across operational records, verified by **198 unit/integration tests (100% pass rate)**.
+- Implemented an embedded **pgvector** RAG subsystem featuring 800-character paragraph-aware chunking, cosine similarity retrieval (`<=>`), strict anti-hallucination refusals, and dynamic SQL analytics aggregation across operational records, verified by **211 unit/integration tests (100% pass rate)**.
 
 ---
 
@@ -40,7 +40,7 @@
 | **Retrieval-Augmented Gen (RAG)**| Text Chunking (sliding window, page preservation), Vector Similarity Search (`<=>`), Grounded Citations |
 | **Frontend & UI** | React 18, TypeScript, Vite, Responsive CSS, Glassmorphic Design, SVG Charts |
 | **DevOps & Infrastructure** | Docker, Docker Compose v2, Multi-Stage Builds, Nginx Alpine, Non-Root Hardening, Health Probes |
-| **Testing & Quality Assurance** | Pytest, Pytest-Asyncio, HTTPX AsyncClient, Test-Double Providers, Unit & E2E Integration (198 Tests) |
+| **Testing & Quality Assurance** | Pytest, Pytest-Asyncio, HTTPX AsyncClient, Test-Double Providers, Unit & E2E Integration (211 Tests) |
 
 ---
 
@@ -48,7 +48,7 @@
 
 When discussing this project in technical interviews or screenings, use only these verified factual metrics:
 
-- **198 automated backend tests** passing with 0 failures across 20 test modules in under 11 seconds.
+- **211 automated backend tests** passing with 0 failures across 20 test modules.
 - **8 coordinated Docker Compose services**: `frontend`, `backend`, `temporal-worker`, `postgres`, `redis`, `temporal`, `temporal-ui`, `temporal-admin-tools`.
 - **5 sequential idempotent Temporal activities**: `run_ocr`, `classify_document`, `extract_fields`, `validate_document`, `score_confidence`.
 - **3 persistent named volumes**: `docfactory_postgres_data`, `docfactory_redis_data`, `docfactory_document_storage`.

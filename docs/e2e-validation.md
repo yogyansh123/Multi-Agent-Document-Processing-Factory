@@ -152,10 +152,10 @@ Each system dimension has been audited and cataloged using strict criteria: **PA
 
 | Verification Dimension | Status | Verification Scope & Test Evidentiary Record |
 |---|---|---|
-| **Backend Test Suite** | **PASS** | **198 tests passed / 0 failed** in 10.66s across 20 test modules (`tests/`). |
-| **Frontend Production Build** | **PASS** | `tsc -b && vite build` completed in 233ms with 0 errors; `oxlint` 0 errors. |
+| **Backend Test Suite** | **PASS** | **211 tests passed / 0 failed** across 20 test modules (`tests/`). |
+| **Frontend Production Build** | **PASS** | `tsc -b && vite build` completed in 358ms with 0 errors; `oxlint` 0 errors. |
 | **Docker Compose Config** | **PASS** | `docker compose config --quiet` passed with exit code 0 across all 8 services. |
-| **Docker Runtime Execution** | **BLOCKED** | Docker daemon was not running on host (`//./pipe/dockerDesktopLinuxEngine` not found). No runtime results fabricated. |
+| **Docker Runtime Execution** | **PASS** | All 8 services active & healthy in Docker Desktop (`docfactory-backend`, `docfactory-frontend`, `docfactory-temporal-worker`, `docfactory-temporal`, `docfactory-temporal-ui`, `docfactory-temporal-admin-tools`, `docfactory-redis`, `docfactory-postgres`). |
 | **Live External OpenAI API** | **BLOCKED** | Placeholder key in `.env`. Automated test suite ran against deterministic `FakeLLMProvider` and `FakeEmbeddingProvider`. |
 | **Service Health Probes** | **PASS** | `/health`, `/health/ready`, and `/health/dependencies` verified in `test_health.py` and `test_health_dependencies.py`. |
 | **Document Ingestion & Storage**| **PASS** | Multipart upload, MIME validation, unique hashed storage verified in `test_documents.py` and `test_e2e_integration.py`. |
