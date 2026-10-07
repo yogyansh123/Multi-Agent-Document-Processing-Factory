@@ -122,7 +122,7 @@ pgdata/
 # -------------------------
 uploads/
 processed/
-storage/
+/storage/
 backend/storage/
 tmp/
 temp/
