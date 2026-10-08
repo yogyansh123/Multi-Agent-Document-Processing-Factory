@@ -34,6 +34,11 @@ class TemporalClientService:
         self._is_mock = is_mock
         self._mock_workflows: dict[str, dict[str, Any]] = {}
 
+    @property
+    def is_mock(self) -> bool:
+        """Return True if running in mock/fallback mode without a live Temporal cluster."""
+        return self._is_mock or not self._client
+
     @classmethod
     async def connect(cls, target_host: str | None = None, namespace: str | None = None) -> TemporalClientService:
         """

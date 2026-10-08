@@ -10,6 +10,7 @@ Routes:
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -17,16 +18,143 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import Cache, DbSession, Temporal
-from app.core.enums import DocumentStatus
+from app.activities.document_activities import (
+    classify_document_activity,
+    extract_fields_activity,
+    run_ocr_activity,
+    score_confidence_activity,
+    validate_document_activity,
+)
+from app.activities.schemas import DocumentActivityInput
+from app.api.deps import Cache, DbSession, Storage, Temporal
+from app.core.enums import DocumentStatus, StageStatus
 from app.core.logging import get_logger
+from app.db.session import get_session_maker
 from app.models.document import Document
 from app.schemas.processing_status import ProcessingStatusResponse
 from app.schemas.workflow import StartWorkflowResponse, WorkflowStatusResponse
+from app.services.temporal.client import TemporalClientService
 
 logger = get_logger("app.api.workflows")
 
 router = APIRouter()
+
+# Active in-memory tracking of direct background pipeline tasks
+_active_direct_tasks: dict[str, asyncio.Task[None]] = {}
+
+
+async def _execute_direct_pipeline(
+    document_id: str,
+    workflow_id: str,
+    temporal_service: TemporalClientService,
+) -> None:
+    """
+    Executes the 5 document processing activities in sequence when Temporal is unavailable:
+    run_ocr_activity -> classify_document_activity -> extract_fields_activity ->
+    validate_document_activity -> score_confidence_activity
+    """
+    logger.info("direct_pipeline.started", document_id=document_id, workflow_id=workflow_id)
+    activity_input = DocumentActivityInput(document_id=document_id)
+    current_stage = "OCR"
+
+    stages = [
+        ("OCR", run_ocr_activity),
+        ("CLASSIFICATION", classify_document_activity),
+        ("EXTRACTION", extract_fields_activity),
+        ("VALIDATION", validate_document_activity),
+        ("CONFIDENCE_SCORING", score_confidence_activity),
+    ]
+
+    try:
+        for stage_name, activity_fn in stages:
+            current_stage = stage_name
+            if temporal_service._is_mock and workflow_id in temporal_service._mock_workflows:
+                temporal_service._mock_workflows[workflow_id]["current_stage"] = stage_name
+
+            logger.info("direct_pipeline.stage_executing", document_id=document_id, stage=stage_name)
+            result = await activity_fn(activity_input)
+
+            if result.status == StageStatus.FAILED.value:
+                raise RuntimeError(f"Activity {stage_name} failed: {result.message}")
+
+        if temporal_service._is_mock and workflow_id in temporal_service._mock_workflows:
+            temporal_service._mock_workflows[workflow_id]["status"] = "COMPLETED"
+            temporal_service._mock_workflows[workflow_id]["current_stage"] = "COMPLETED"
+
+        logger.info("direct_pipeline.completed", document_id=document_id, workflow_id=workflow_id)
+
+    except Exception as exc:
+        logger.error(
+            "direct_pipeline.failed",
+            document_id=document_id,
+            stage=current_stage,
+            error=str(exc),
+        )
+        if temporal_service._is_mock and workflow_id in temporal_service._mock_workflows:
+            temporal_service._mock_workflows[workflow_id]["status"] = "FAILED"
+            temporal_service._mock_workflows[workflow_id]["current_stage"] = current_stage
+            temporal_service._mock_workflows[workflow_id]["error"] = str(exc)
+
+        # Ensure document status in DB is marked FAILED if not already marked
+        try:
+            from app.models.processing_history import ProcessingHistory
+
+            session_maker = get_session_maker()
+            async with session_maker() as session:
+                res = await session.execute(
+                    select(Document).where(Document.id == uuid.UUID(document_id))
+                )
+                doc = res.scalar_one_or_none()
+                if doc:
+                    doc.status = DocumentStatus.FAILED.value
+                    doc.error_message = f"{current_stage} failed: {str(exc)}"
+                    failed_history = ProcessingHistory(
+                        id=uuid.uuid4(),
+                        document_id=doc.id,
+                        stage=current_stage,
+                        status=StageStatus.FAILED.value,
+                        message=f"{current_stage} failed: {str(exc)}",
+                        error_details=str(exc),
+                        started_at=datetime.now(timezone.utc),
+                        completed_at=datetime.now(timezone.utc),
+                    )
+                    session.add(failed_history)
+                    await session.commit()
+        except Exception as db_exc:
+            logger.error(
+                "direct_pipeline.status_update_failed",
+                document_id=document_id,
+                error=str(db_exc),
+            )
+
+        # Invalidate cache so polling gets failed status immediately
+        try:
+            from app.services.cache import get_redis_service
+
+            redis_svc = await get_redis_service()
+            await redis_svc.delete_document_status(uuid.UUID(document_id))
+        except Exception:
+            pass
+
+    finally:
+        _active_direct_tasks.pop(document_id, None)
+
+
+def _start_direct_pipeline_task(
+    document_id: str,
+    workflow_id: str,
+    temporal_service: TemporalClientService,
+) -> None:
+    """Start direct pipeline execution in the background if not already running."""
+    existing_task = _active_direct_tasks.get(document_id)
+    if existing_task and not existing_task.done():
+        logger.info("direct_pipeline.already_running", document_id=document_id)
+        return
+
+    task = asyncio.create_task(
+        _execute_direct_pipeline(document_id, workflow_id, temporal_service)
+    )
+    _active_direct_tasks[document_id] = task
 
 
 @router.post(
@@ -50,6 +178,7 @@ async def process_document(
     db: DbSession,
     temporal: Temporal,
     cache: Cache,
+    storage: Storage,
 ) -> StartWorkflowResponse:
     """Trigger the asynchronous Temporal processing workflow for a document."""
     result = await db.execute(select(Document).where(Document.id == document_id))
@@ -92,6 +221,23 @@ async def process_document(
             workflow_id=workflow_id,
             run_id=run_id,
         )
+
+        # Fallback: execute direct background pipeline when Temporal is unavailable / in mock mode
+        if temporal.is_mock:
+            file_exists = False
+            try:
+                file_exists = bool(document.file_path and await storage.exists(document.file_path))
+            except Exception:
+                file_exists = False
+
+            if file_exists:
+                _start_direct_pipeline_task(str(document.id), workflow_id, temporal)
+            else:
+                logger.info(
+                    "workflow.direct_pipeline_skipped_no_file",
+                    document_id=str(document_id),
+                    file_path=document.file_path,
+                )
 
         return StartWorkflowResponse(
             document_id=document.id,
