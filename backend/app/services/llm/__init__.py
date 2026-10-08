@@ -12,9 +12,11 @@ from app.services.llm.base import (
     LLMProvider,
 )
 from app.services.llm.factory import get_llm_provider
+from app.services.llm.gemini import GeminiLLMProvider
 from app.services.llm.openai import OpenAILLMProvider
 
 __all__ = [
+    "GeminiLLMProvider",
     "LLMAPIError",
     "LLMAuthenticationError",
     "LLMConfigurationError",

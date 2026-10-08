@@ -174,9 +174,13 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # LLM Provider
     # -------------------------------------------------------------------------
-    LLM_PROVIDER: Literal["openai", "anthropic", "google", "azure_openai", "ollama"] = (
+    LLM_PROVIDER: Literal["openai", "anthropic", "google", "azure_openai", "ollama", "gemini"] = (
         "openai"
     )
+
+    # Gemini (Google AI Studio Free Tier)
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
 
     # OpenAI
     OPENAI_API_KEY: str | None = None

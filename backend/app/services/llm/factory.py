@@ -10,6 +10,7 @@ from functools import lru_cache
 
 from app.core.config import settings
 from app.services.llm.base import LLMProvider
+from app.services.llm.gemini import GeminiLLMProvider
 from app.services.llm.ollama import OllamaLLMProvider
 from app.services.llm.openai import OpenAILLMProvider
 
@@ -27,6 +28,8 @@ def get_llm_provider(provider_name: str | None = None) -> LLMProvider:
         return OpenAILLMProvider()
     elif name == "ollama":
         return OllamaLLMProvider()
+    elif name == "gemini":
+        return GeminiLLMProvider()
     elif name in {"anthropic", "google", "azure_openai"}:
         raise NotImplementedError(
             f"LLM provider '{name}' is planned for a future step and not yet implemented."
